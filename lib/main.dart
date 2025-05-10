@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:intl/intl.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import '../widgets/task_list.dart';
 
 void main() {
@@ -67,9 +69,12 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _showAddTaskDialog() async {
     return showDialog(
       context: context,
-      builder: (BuildContext context) => AddTaskDialog(
-        onSubmit: (title, description) => _submitNewTask(title, description: description),
-      ),
+      builder:
+          (BuildContext context) => AddTaskDialog(
+            onSubmit:
+                (title, description) =>
+                    _submitNewTask(title, description: description),
+          ),
     );
   }
 
@@ -194,17 +199,18 @@ class TaskListBody extends StatelessWidget {
               itemCount: taskList.length,
               onReorder: onReorder,
               buildDefaultDragHandles: false,
-              itemBuilder: (context, index) => TaskListItem(
-                key: ValueKey(taskList[index].id),
-                task: taskList[index],
-                index: index,
-                isExpanded: expandedTaskId == taskList[index].id,
-                onToggle: onTaskToggle,
-                onDelete: onTaskDelete,
-                onPrioritize: onTaskPrioritize,
-                onExpand: onTaskExpand,
-                onEdit: onTaskEdit,
-              ),
+              itemBuilder:
+                  (context, index) => TaskListItem(
+                    key: ValueKey(taskList[index].id),
+                    task: taskList[index],
+                    index: index,
+                    isExpanded: expandedTaskId == taskList[index].id,
+                    onToggle: onTaskToggle,
+                    onDelete: onTaskDelete,
+                    onPrioritize: onTaskPrioritize,
+                    onExpand: onTaskExpand,
+                    onEdit: onTaskEdit,
+                  ),
             ),
           ),
         ],
@@ -228,10 +234,7 @@ class TaskCountHeader extends StatelessWidget {
     return Text(
       'Pending: $pendingCount\nCompleted: ${totalCount - pendingCount}',
       style: GoogleFonts.lato(
-        textStyle: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-        ),
+        textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -316,23 +319,24 @@ class TaskListItem extends StatelessWidget {
   void _showDeleteConfirmation(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: const Text('Are you sure you want to delete this?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Confirm Delete'),
+            content: const Text('Are you sure you want to delete this?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  onDelete(index);
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              onDelete(index);
-              Navigator.of(context).pop();
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -407,7 +411,7 @@ class TaskTitleButton extends StatelessWidget {
       onPressed: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const HelloWorldPage()),
+          MaterialPageRoute(builder: (context) => TaskPage(task: task)),
         );
       },
       child: Text(
@@ -416,8 +420,14 @@ class TaskTitleButton extends StatelessWidget {
           textStyle: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: task.isCompleted ? const Color.fromARGB(255, 60, 59, 59) : Colors.black,
-            decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
+            color:
+                task.isCompleted
+                    ? const Color.fromARGB(255, 60, 59, 59)
+                    : Colors.black,
+            decoration:
+                task.isCompleted
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
           ),
         ),
       ),
@@ -450,11 +460,7 @@ class TaskCheckbox extends StatelessWidget {
   final Task task;
   final Function(Task) onToggle;
 
-  const TaskCheckbox({
-    super.key,
-    required this.task,
-    required this.onToggle,
-  });
+  const TaskCheckbox({super.key, required this.task, required this.onToggle});
 
   @override
   Widget build(BuildContext context) {
@@ -476,27 +482,21 @@ class TaskMenuButton extends StatelessWidget {
   final Task task;
   final Function(Task, String?, String?) onEdit;
 
-  const TaskMenuButton({
-    super.key,
-    required this.task,
-    required this.onEdit,
-  });
+  const TaskMenuButton({super.key, required this.task, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert),
       padding: EdgeInsets.zero,
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'edit_name',
-          child: Text('Edit name'),
-        ),
-        const PopupMenuItem(
-          value: 'edit_description',
-          child: Text('Edit description'),
-        ),
-      ],
+      itemBuilder:
+          (context) => [
+            const PopupMenuItem(value: 'edit_name', child: Text('Edit name')),
+            const PopupMenuItem(
+              value: 'edit_description',
+              child: Text('Edit description'),
+            ),
+          ],
       onSelected: (value) => _handleEdit(context, value),
     );
   }
@@ -532,26 +532,27 @@ class TaskMenuButton extends StatelessWidget {
     String newValue = initialValue;
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          autofocus: true,
-          controller: TextEditingController(text: initialValue),
-          onChanged: (val) => newValue = val,
-          decoration: InputDecoration(hintText: hintText),
-          onSubmitted: (val) => Navigator.of(context).pop(val),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: Text(title),
+            content: TextField(
+              autofocus: true,
+              controller: TextEditingController(text: initialValue),
+              onChanged: (val) => newValue = val,
+              decoration: InputDecoration(hintText: hintText),
+              onSubmitted: (val) => Navigator.of(context).pop(val),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(newValue),
+                child: const Text('Save'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(newValue),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -571,10 +572,7 @@ class TaskDescription extends StatelessWidget {
         child: Text(
           description,
           style: GoogleFonts.lato(
-            textStyle: const TextStyle(
-              fontSize: 16,
-              color: Colors.black87,
-            ),
+            textStyle: const TextStyle(fontSize: 16, color: Colors.black87),
           ),
         ),
       ),
@@ -594,6 +592,7 @@ class AddTaskDialog extends StatefulWidget {
 class _AddTaskDialogState extends State<AddTaskDialog> {
   String newTaskTitle = '';
   String newTaskDescription = '';
+  String? newTaskDueDate;
 
   @override
   Widget build(BuildContext context) {
@@ -606,14 +605,57 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
             onChanged: (value) => newTaskTitle = value,
             decoration: const InputDecoration(hintText: 'Enter task title'),
             autofocus: true,
-            onSubmitted: (value) => widget.onSubmit(value, null),
           ),
           const SizedBox(height: 16),
           TextField(
             onChanged: (value) => newTaskDescription = value,
             decoration: const InputDecoration(hintText: 'Enter description'),
-            onSubmitted: (value) => widget.onSubmit(newTaskTitle, value),
           ),
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: () async {
+              final DateTime? pickedDate = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2100),
+              );
+                if (pickedDate != null) {
+                final TimeOfDay? pickedTime = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.now(),
+                  builder: (BuildContext context, Widget? child) {
+                  return MediaQuery(
+                    data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+                    child: child!,
+                  );
+                  },
+                  initialEntryMode: TimePickerEntryMode.input,
+                );
+                if (pickedTime != null) {
+                  final DateTime combinedDateTime = DateTime(
+                    pickedDate.year,
+                    pickedDate.month,
+                    pickedDate.day,
+                    pickedTime.hour,
+                    pickedTime.minute,
+                  );
+                  setState(() {
+                    newTaskDueDate = combinedDateTime.toIso8601String();
+                  });
+                }
+              }
+            },
+            child: const Text('Choose due date and time'),
+          ),
+          if (newTaskDueDate != null)
+            Text(
+                'Due ${DateFormat('MMMM d', 'en_US').format(DateTime.parse(newTaskDueDate!))}'
+                '${_getDaySuffix(DateTime.parse(newTaskDueDate!).day)}, '
+                '${DateFormat('yyyy', 'en_US').format(DateTime.parse(newTaskDueDate!))} '
+                'at ${DateFormat('HH:mm', 'en_US').format(DateTime.parse(newTaskDueDate!))}',
+              style: const TextStyle(fontSize: 16),
+            ),
         ],
       ),
       actions: [
@@ -634,16 +676,57 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 }
 
-class HelloWorldPage extends StatelessWidget {
-  const HelloWorldPage({super.key});
+class TaskPage extends StatelessWidget {
+  final Task task;
+
+  const TaskPage({super.key, required this.task});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Hello World Page')),
-      body: const Center(
-        child: Text('Hello World', style: TextStyle(fontSize: 32)),
+      appBar: AppBar(
+        title: Text(
+          task.title,
+          style: GoogleFonts.lato(
+            textStyle: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(task.description, style: TextStyle(fontSize: 32)),
+            const SizedBox(height: 16),
+            Text('Created ${timeago.format(task.created)}'),
+            if (task.dueDate != null)
+              Text(
+                'Due in ${timeago.format(task.dueDate!, allowFromNow: true)}',
+              ),
+          ],
+        ),
       ),
     );
+  }
+}
+
+
+String _getDaySuffix(int day) {
+  if (day >= 11 && day <= 13) {
+    return 'th';
+  }
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
   }
 }

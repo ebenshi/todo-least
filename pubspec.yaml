@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  intl: ^0.18.0
+  timeago: ^3.3.0
   google_fonts: ^6.1.0
   flutter_slidable: ^4.0.0
 
