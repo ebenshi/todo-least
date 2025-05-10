@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+// import 'dart:convert';
 
 class Task {
   String title;
@@ -7,6 +8,7 @@ class Task {
   bool isCompleted;
   DateTime created;
   DateTime? dueDate;
+  String? photoPath;
   static int _idCounter = 0;
 
   Task({
@@ -16,11 +18,38 @@ class Task {
     this.isCompleted = false,
     DateTime? created,
     this.dueDate,
+    this.photoPath,
   }) : id = id ?? _idCounter++,
-      created = created ?? DateTime.now();
+       created = created ?? DateTime.now();
 
   void toggleCompleted() {
     isCompleted = !isCompleted;
+  }
+
+  // Convert Task to Map
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'description': description,
+      'id': id,
+      'isCompleted': isCompleted,
+      'created': created.toIso8601String(),
+      'dueDate': dueDate?.toIso8601String(),
+      'photoPath': photoPath,
+    };
+  }
+
+  // Create Task from Map
+  factory Task.fromJson(Map<String, dynamic> json) {
+    return Task(
+      title: json['title'],
+      description: json['description'],
+      id: json['id'],
+      isCompleted: json['isCompleted'],
+      created: DateTime.parse(json['created']),
+      dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
+      photoPath: json['photoPath'],
+    );
   }
 }
 

@@ -1,10 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../widgets/task_list.dart';
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -43,13 +50,49 @@ class _MyHomePageState extends State<MyHomePage> {
   int _pendingTaskCount = 0;
   int? _expandedTaskId;
 
-  void _submitNewTask(String title, {String? description = ''}) {
-    if (title.trim().isEmpty) return;
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
 
+  Future<void> _loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tasksJson = prefs.getString('tasks');
+    if (tasksJson != null) {
+      final List decoded = jsonDecode(tasksJson);
+      setState(() {
+        _taskList.clear();
+        _taskList.addAll(decoded.map((e) => Task.fromJson(e)));
+
+        _updatePendingTaskCount();
+      });
+    }
+  }
+
+  Future<void> saveTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final encoded = jsonEncode(_taskList.map((t) => t.toJson()).toList());
+    await prefs.setString('tasks', encoded);
+  }
+
+  void _submitNewTask(
+    String title, {
+    String? description = '',
+    DateTime? dueDate,
+  }) {
+    if (title.trim().isEmpty) return;
     setState(() {
-      _taskList.add(Task(title: title.trim(), description: description ?? ''));
+      final task = Task(
+        title: title.trim(),
+        description: description ?? '',
+        dueDate: dueDate,
+      );
+      _taskList.add(task);
       _updatePendingTaskCount();
     });
+    saveTasks();
 
     Navigator.of(context).pop();
   }
@@ -63,6 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
       if (newIndex > oldIndex) newIndex -= 1;
       final task = _taskList.removeAt(oldIndex);
       _taskList.insert(newIndex, task);
+      saveTasks();
     });
   }
 
@@ -72,8 +116,11 @@ class _MyHomePageState extends State<MyHomePage> {
       builder:
           (BuildContext context) => AddTaskDialog(
             onSubmit:
-                (title, description) =>
-                    _submitNewTask(title, description: description),
+                (title, description, dueDate) => _submitNewTask(
+                  title,
+                  description: description,
+                  dueDate: dueDate,
+                ),
           ),
     );
   }
@@ -120,18 +167,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 setState(() {
                   task.toggleCompleted();
                   _updatePendingTaskCount();
+                  saveTasks();
                 });
               },
               onTaskDelete: (index) {
                 setState(() {
                   _taskList.removeAt(index);
                   _updatePendingTaskCount();
+                  saveTasks();
                 });
               },
               onTaskPrioritize: (task, index) {
                 setState(() {
                   _taskList.removeAt(index);
                   _taskList.insert(0, task);
+                  saveTasks();
                 });
               },
               onTaskExpand: (taskId) {
@@ -139,10 +189,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   _expandedTaskId = (_expandedTaskId == taskId) ? null : taskId;
                 });
               },
-              onTaskEdit: (task, newTitle, newDescription) {
+              onTaskEdit: (task, newTitle, newDescription, newDueDate) {
                 setState(() {
                   if (newTitle != null) task.title = newTitle;
                   if (newDescription != null) task.description = newDescription;
+                  if (newDueDate != null) task.dueDate = newDueDate;
+                  saveTasks();
                 });
               },
             ),
@@ -167,7 +219,7 @@ class TaskListBody extends StatelessWidget {
   final Function(int) onTaskDelete;
   final Function(Task, int) onTaskPrioritize;
   final Function(int?) onTaskExpand;
-  final Function(Task, String?, String?) onTaskEdit;
+  final Function(Task, String?, String?, DateTime?) onTaskEdit;
 
   const TaskListBody({
     super.key,
@@ -248,7 +300,7 @@ class TaskListItem extends StatelessWidget {
   final Function(int) onDelete;
   final Function(Task, int) onPrioritize;
   final Function(int?) onExpand;
-  final Function(Task, String?, String?) onEdit;
+  final Function(Task, String?, String?, DateTime?) onEdit;
 
   const TaskListItem({
     super.key,
@@ -347,7 +399,7 @@ class TaskTile extends StatelessWidget {
   final bool isExpanded;
   final Function(Task) onToggle;
   final Function(int?) onExpand;
-  final Function(Task, String?, String?) onEdit;
+  final Function(Task, String?, String?, DateTime?) onEdit;
 
   const TaskTile({
     super.key,
@@ -379,6 +431,23 @@ class TaskTile extends StatelessWidget {
                   children: [
                     TaskTitleButton(task: task),
                     const SizedBox(width: 8),
+                    if (task.photoPath != null)
+                        GestureDetector(
+                        // onTap: () {
+                        //   _showImageDialog(context, task.photoPath!);
+                        // },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(4),
+                          image: DecorationImage(
+                            image: FileImage(File(task.photoPath!)),
+                            fit: BoxFit.cover,
+                          ),
+                          ),
+                        ),
+                        ),
                     if (task.description.isNotEmpty)
                       ExpandButton(
                         task: task,
@@ -480,7 +549,7 @@ class TaskCheckbox extends StatelessWidget {
 
 class TaskMenuButton extends StatelessWidget {
   final Task task;
-  final Function(Task, String?, String?) onEdit;
+  final Function(Task, String?, String?, DateTime?) onEdit;
 
   const TaskMenuButton({super.key, required this.task, required this.onEdit});
 
@@ -496,6 +565,10 @@ class TaskMenuButton extends StatelessWidget {
               value: 'edit_description',
               child: Text('Edit description'),
             ),
+            const PopupMenuItem(
+              value: 'edit_due_date',
+              child: Text('Edit due date'),
+            ),
           ],
       onSelected: (value) => _handleEdit(context, value),
     );
@@ -510,7 +583,7 @@ class TaskMenuButton extends StatelessWidget {
         'Task name',
       );
       if (result != null && result.trim().isNotEmpty) {
-        onEdit(task, result.trim(), null);
+        onEdit(task, result.trim(), null, null);
       }
     } else if (value == 'edit_description') {
       final result = await _showEditDialog(
@@ -519,7 +592,42 @@ class TaskMenuButton extends StatelessWidget {
         task.description,
         'Description',
       );
-      onEdit(task, null, result);
+      onEdit(task, null, result, null);
+    } else if (value == 'edit_due_date') {
+      final DateTime? pickedDate = await showDatePicker(
+        context: context,
+        initialDate: task.dueDate ?? DateTime.now(),
+        firstDate: DateTime.now(),
+        lastDate: DateTime(2100),
+      );
+      if (pickedDate != null) {
+        final TimeOfDay? pickedTime = await showTimePicker(
+          context: context,
+          initialTime:
+              task.dueDate != null
+                  ? TimeOfDay.fromDateTime(task.dueDate!)
+                  : TimeOfDay.now(),
+          builder: (BuildContext context, Widget? child) {
+            return MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(alwaysUse24HourFormat: true),
+              child: child!,
+            );
+          },
+          initialEntryMode: TimePickerEntryMode.input,
+        );
+        if (pickedTime != null && context.mounted) {
+          final DateTime combinedDateTime = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+          onEdit(task, null, null, combinedDateTime);
+        }
+      }
     }
   }
 
@@ -581,7 +689,7 @@ class TaskDescription extends StatelessWidget {
 }
 
 class AddTaskDialog extends StatefulWidget {
-  final Function(String, String?) onSubmit;
+  final Function(String, String?, DateTime?) onSubmit;
 
   const AddTaskDialog({super.key, required this.onSubmit});
 
@@ -620,19 +728,21 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 firstDate: DateTime.now(),
                 lastDate: DateTime(2100),
               );
-                if (pickedDate != null) {
+              if (pickedDate != null) {
                 final TimeOfDay? pickedTime = await showTimePicker(
                   context: context,
                   initialTime: TimeOfDay.now(),
                   builder: (BuildContext context, Widget? child) {
-                  return MediaQuery(
-                    data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-                    child: child!,
-                  );
+                    return MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(alwaysUse24HourFormat: true),
+                      child: child!,
+                    );
                   },
                   initialEntryMode: TimePickerEntryMode.input,
                 );
-                if (pickedTime != null) {
+                if (pickedTime != null && mounted) {
                   final DateTime combinedDateTime = DateTime(
                     pickedDate.year,
                     pickedDate.month,
@@ -650,10 +760,10 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           ),
           if (newTaskDueDate != null)
             Text(
-                'Due ${DateFormat('MMMM d', 'en_US').format(DateTime.parse(newTaskDueDate!))}'
-                '${_getDaySuffix(DateTime.parse(newTaskDueDate!).day)}, '
-                '${DateFormat('yyyy', 'en_US').format(DateTime.parse(newTaskDueDate!))} '
-                'at ${DateFormat('HH:mm', 'en_US').format(DateTime.parse(newTaskDueDate!))}',
+              'Due ${DateFormat('MMMM d', 'en_US').format(DateTime.parse(newTaskDueDate!))}'
+              '${_getDaySuffix(DateTime.parse(newTaskDueDate!).day)}, '
+              '${DateFormat('yyyy', 'en_US').format(DateTime.parse(newTaskDueDate!))} '
+              'at ${DateFormat('HH:mm', 'en_US').format(DateTime.parse(newTaskDueDate!))}',
               style: const TextStyle(fontSize: 16),
             ),
         ],
@@ -666,7 +776,11 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         TextButton(
           onPressed: () {
             if (newTaskTitle.trim().isNotEmpty) {
-              widget.onSubmit(newTaskTitle, newTaskDescription);
+              widget.onSubmit(
+                newTaskTitle,
+                newTaskDescription,
+                newTaskDueDate != null ? DateTime.parse(newTaskDueDate!) : null,
+              );
             }
           },
           child: const Text('Add'),
@@ -676,44 +790,157 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 }
 
-class TaskPage extends StatelessWidget {
+class TaskPage extends StatefulWidget {
   final Task task;
 
   const TaskPage({super.key, required this.task});
+
+  @override
+  State<TaskPage> createState() => _TaskPageState();
+}
+
+class _TaskPageState extends State<TaskPage> {
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          task.title,
+          widget.task.title,
           style: GoogleFonts.lato(
-            textStyle: const TextStyle(
+            textStyle: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              decoration:
+                widget.task.isCompleted
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
             ),
           ),
         ),
+        actions: [
+          if (widget.task.photoPath != null)
+            IconButton(
+              icon: const Icon(Icons.image),
+              onPressed: () {
+                _showImageDialog(context, widget.task.photoPath!);
+              },
+            ),
+        ],
       ),
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(task.description, style: TextStyle(fontSize: 32)),
+            GestureDetector(
+              onTap: () async {
+                final ImagePicker picker = ImagePicker();
+                final XFile? image = await picker.pickImage(
+                  source: ImageSource.gallery,
+                );
+
+                if (image != null) {
+                  try {
+                    // Get the app's document directory
+                    final directory = await getApplicationDocumentsDirectory();
+                    final fileName =
+                        '${DateTime.now().millisecondsSinceEpoch}_${path.basename(image.path)}';
+                    final savedImagePath = path.join(directory.path, fileName);
+
+                    // Copy the image to the documents directory
+                    final File savedImage = File(savedImagePath);
+                    await savedImage.writeAsBytes(await image.readAsBytes());
+
+                    setState(() {
+                      widget.task.photoPath = savedImagePath;
+                    });
+
+                    // Get the HomePageState and save tasks
+                    final homeState =
+                        context.findAncestorStateOfType<_MyHomePageState>();
+                    if (homeState != null) {
+                      homeState.saveTasks();
+                    }
+                  } catch (e) {
+                    if (kDebugMode) print('Error saving image: $e');
+                  }
+                }
+              },
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                  image:
+                      widget.task.photoPath != null &&
+                              File(widget.task.photoPath!).existsSync()
+                          ? DecorationImage(
+                            image:
+                                Image.file(File(widget.task.photoPath!)).image,
+                            fit: BoxFit.cover,
+                          )
+                          : null,
+                ),
+                child:
+                    widget.task.photoPath == null ||
+                            !File(widget.task.photoPath!).existsSync()
+                        ? const Icon(
+                          Icons.add_a_photo,
+                          size: 40,
+                          color: Colors.black54,
+                        )
+                        : null,
+              ),
+            ),
+            Text(widget.task.description, style: const TextStyle(fontSize: 32)),
             const SizedBox(height: 16),
-            Text('Created ${timeago.format(task.created)}'),
-            if (task.dueDate != null)
+            Text('Created ${timeago.format(widget.task.created)}'),
+            if (widget.task.dueDate != null)
               Text(
-                'Due in ${timeago.format(task.dueDate!, allowFromNow: true)}',
+                'Due in ${timeago.format(widget.task.dueDate!, allowFromNow: true)}',
               ),
           ],
         ),
       ),
     );
   }
-}
 
+  void _showImageDialog(BuildContext context, String imagePath) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (File(imagePath).existsSync())
+                Image.file(
+                  File(imagePath),
+                  height: 200,
+                  width: 200,
+                  fit: BoxFit.cover,
+                )
+              else
+                const Text('File does not exist!'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
 
 String _getDaySuffix(int day) {
   if (day >= 11 && day <= 13) {
