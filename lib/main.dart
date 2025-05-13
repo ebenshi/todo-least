@@ -46,17 +46,7 @@ class NewTaskIntent extends Intent {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final List<Task> _taskList = [];
-  int _pendingTaskCount = 0;
-  int? _expandedTaskId;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTasks();
-  }
-
-  Future<void> _loadTasks() async {
+  Future<void> loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
     final tasksJson = prefs.getString('tasks');
     if (tasksJson != null) {
@@ -68,6 +58,16 @@ class _MyHomePageState extends State<MyHomePage> {
         _updatePendingTaskCount();
       });
     }
+  }
+
+  final List<Task> _taskList = [];
+  int _pendingTaskCount = 0;
+  int? _expandedTaskId;
+
+  @override
+  void initState() {
+    super.initState();
+    loadTasks();
   }
 
   Future<void> saveTasks() async {
@@ -156,7 +156,7 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Scaffold(
             appBar: AppBar(
               backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-              title: Text(widget.title),
+              title: Text(widget.title, overflow: TextOverflow.ellipsis),
             ),
             body: TaskListBody(
               taskList: _taskList,
@@ -197,6 +197,19 @@ class _MyHomePageState extends State<MyHomePage> {
                   saveTasks();
                 });
               },
+              onTaskTap: (taskId) {
+                final index = _taskList.indexWhere((t) => t.id == taskId);
+                final task = _taskList[index];
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => TaskPage(task: task)),
+                ).then((_) {
+                  setState(() {
+                    _updatePendingTaskCount();
+                    saveTasks();
+                  });
+                });
+              },
             ),
             floatingActionButton: FloatingActionButton(
               onPressed: _showAddTaskDialog,
@@ -220,6 +233,7 @@ class TaskListBody extends StatelessWidget {
   final Function(Task, int) onTaskPrioritize;
   final Function(int?) onTaskExpand;
   final Function(Task, String?, String?, DateTime?) onTaskEdit;
+  final Function(int) onTaskTap;
 
   const TaskListBody({
     super.key,
@@ -232,6 +246,7 @@ class TaskListBody extends StatelessWidget {
     required this.onTaskPrioritize,
     required this.onTaskExpand,
     required this.onTaskEdit,
+    required this.onTaskTap,
   });
 
   @override
@@ -262,6 +277,7 @@ class TaskListBody extends StatelessWidget {
                     onPrioritize: onTaskPrioritize,
                     onExpand: onTaskExpand,
                     onEdit: onTaskEdit,
+                    onTap: onTaskTap,
                   ),
             ),
           ),
@@ -288,6 +304,7 @@ class TaskCountHeader extends StatelessWidget {
       style: GoogleFonts.lato(
         textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
       ),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -301,6 +318,7 @@ class TaskListItem extends StatelessWidget {
   final Function(Task, int) onPrioritize;
   final Function(int?) onExpand;
   final Function(Task, String?, String?, DateTime?) onEdit;
+  final Function(int) onTap;
 
   const TaskListItem({
     super.key,
@@ -312,6 +330,7 @@ class TaskListItem extends StatelessWidget {
     required this.onPrioritize,
     required this.onExpand,
     required this.onEdit,
+    required this.onTap,
   });
 
   @override
@@ -361,6 +380,7 @@ class TaskListItem extends StatelessWidget {
             onToggle: onToggle,
             onExpand: onExpand,
             onEdit: onEdit,
+            onTap: onTap,
           ),
         ),
         const Divider(height: 1),
@@ -400,6 +420,7 @@ class TaskTile extends StatelessWidget {
   final Function(Task) onToggle;
   final Function(int?) onExpand;
   final Function(Task, String?, String?, DateTime?) onEdit;
+  final Function(int) onTap;
 
   const TaskTile({
     super.key,
@@ -409,7 +430,40 @@ class TaskTile extends StatelessWidget {
     required this.onToggle,
     required this.onExpand,
     required this.onEdit,
+    required this.onTap,
   });
+
+  void _showImageDialog(BuildContext context, String imagePath) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (File(imagePath).existsSync())
+                Image.file(
+                  File(imagePath),
+                  height: 200,
+                  width: 200,
+                  fit: BoxFit.cover,
+                )
+              else
+                const Text('File does not exist!'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -429,25 +483,47 @@ class TaskTile extends StatelessWidget {
               Expanded(
                 child: Row(
                   children: [
-                    TaskTitleButton(task: task),
+                    TextButton(
+                      onPressed: () {
+                        onTap(task.id);
+                      },
+                      child: Text(
+                        task.title,
+                        style: GoogleFonts.lato(
+                          textStyle: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color:
+                                task.isCompleted
+                                    ? const Color.fromARGB(255, 60, 59, 59)
+                                    : Colors.black,
+                            decoration:
+                                task.isCompleted
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                          ),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     if (task.photoPath != null)
-                        GestureDetector(
-                        // onTap: () {
-                        //   _showImageDialog(context, task.photoPath!);
-                        // },
+                      GestureDetector(
+                        onTap: () {
+                          _showImageDialog(context, task.photoPath!);
+                        },
                         child: Container(
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4),
-                          image: DecorationImage(
-                            image: FileImage(File(task.photoPath!)),
-                            fit: BoxFit.cover,
-                          ),
+                            borderRadius: BorderRadius.circular(4),
+                            image: DecorationImage(
+                              image: FileImage(File(task.photoPath!)),
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
-                        ),
+                      ),
                     if (task.description.isNotEmpty)
                       ExpandButton(
                         task: task,
@@ -477,11 +553,22 @@ class TaskTitleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextButton(
-      onPressed: () {
-        Navigator.push(
+      onPressed: () async {
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => TaskPage(task: task)),
         );
+
+        void loadData() {
+          final homeState = context.findAncestorStateOfType<_MyHomePageState>();
+          if (homeState != null) {
+            homeState.loadTasks();
+          }
+        }
+
+        if (result == true) {
+          loadData();
+        }
       },
       child: Text(
         task.title,
@@ -499,6 +586,7 @@ class TaskTitleButton extends StatelessWidget {
                     : TextDecoration.none,
           ),
         ),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -556,18 +644,18 @@ class TaskMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
       padding: EdgeInsets.zero,
+      icon: const Icon(Icons.more_vert),
       itemBuilder:
           (context) => [
             const PopupMenuItem(value: 'edit_name', child: Text('Edit name')),
             const PopupMenuItem(
               value: 'edit_description',
-              child: Text('Edit description'),
+              child: Text('Edit description', overflow: TextOverflow.ellipsis),
             ),
             const PopupMenuItem(
               value: 'edit_due_date',
-              child: Text('Edit due date'),
+              child: Text('Edit due date', overflow: TextOverflow.ellipsis),
             ),
           ],
       onSelected: (value) => _handleEdit(context, value),
@@ -642,7 +730,7 @@ class TaskMenuButton extends StatelessWidget {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text(title),
+            title: Text(title, overflow: TextOverflow.ellipsis),
             content: TextField(
               autofocus: true,
               controller: TextEditingController(text: initialValue),
@@ -682,6 +770,7 @@ class TaskDescription extends StatelessWidget {
           style: GoogleFonts.lato(
             textStyle: const TextStyle(fontSize: 16, color: Colors.black87),
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -792,7 +881,6 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
 class TaskPage extends StatefulWidget {
   final Task task;
-
   const TaskPage({super.key, required this.task});
 
   @override
@@ -800,6 +888,35 @@ class TaskPage extends StatefulWidget {
 }
 
 class _TaskPageState extends State<TaskPage> {
+  void onToggle(Task task) {
+    setState(() {
+      task.toggleCompleted();
+    });
+    final homeState = context.findAncestorStateOfType<_MyHomePageState>();
+    if (homeState != null) {
+      homeState.saveTasks();
+    }
+    Navigator.of(context).pop(true);
+  }
+
+  void onEdit(
+    Task task,
+    String? title,
+    String? description,
+    DateTime? dueDate,
+  ) {
+    setState(() {
+      if (title != null) task.title = title;
+      if (description != null) task.description = description;
+      if (dueDate != null) task.dueDate = dueDate;
+    });
+    final homeState = context.findAncestorStateOfType<_MyHomePageState>();
+    if (homeState != null) {
+      homeState.saveTasks();
+    }
+    Navigator.of(context).pop(true);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -809,28 +926,43 @@ class _TaskPageState extends State<TaskPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.task.title,
-          style: GoogleFonts.lato(
-            textStyle: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              decoration:
-                widget.task.isCompleted
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
+        toolbarHeight: 60,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                widget.task.title,
+                style: GoogleFonts.lato(
+                  textStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    decoration:
+                        widget.task.isCompleted
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                  ),
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
-          ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TaskCheckbox(task: widget.task, onToggle: onToggle),
+                TaskMenuButton(task: widget.task, onEdit: onEdit),
+              ],
+            ),
+          ],
         ),
-        actions: [
-          if (widget.task.photoPath != null)
-            IconButton(
-              icon: const Icon(Icons.image),
-              onPressed: () {
-                _showImageDialog(context, widget.task.photoPath!);
-              },
-            ),
-        ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Always return true to trigger the update in the parent
+            Navigator.of(context).pop(true);
+          },
+        ),
       ),
       body: Center(
         child: Column(
@@ -838,11 +970,15 @@ class _TaskPageState extends State<TaskPage> {
             GestureDetector(
               onTap: () async {
                 final ImagePicker picker = ImagePicker();
+                // Capture the state outside the async operation
+                final state =
+                    context.findAncestorStateOfType<_MyHomePageState>();
+
                 final XFile? image = await picker.pickImage(
                   source: ImageSource.gallery,
                 );
 
-                if (image != null) {
+                if (image != null && mounted) {
                   try {
                     // Get the app's document directory
                     final directory = await getApplicationDocumentsDirectory();
@@ -854,15 +990,15 @@ class _TaskPageState extends State<TaskPage> {
                     final File savedImage = File(savedImagePath);
                     await savedImage.writeAsBytes(await image.readAsBytes());
 
+                    if (!mounted) return;
+
                     setState(() {
                       widget.task.photoPath = savedImagePath;
                     });
 
-                    // Get the HomePageState and save tasks
-                    final homeState =
-                        context.findAncestorStateOfType<_MyHomePageState>();
-                    if (homeState != null) {
-                      homeState.saveTasks();
+                    // Use the previously captured state reference
+                    if (state != null) {
+                      state.saveTasks();
                     }
                   } catch (e) {
                     if (kDebugMode) print('Error saving image: $e');
@@ -896,7 +1032,11 @@ class _TaskPageState extends State<TaskPage> {
                         : null,
               ),
             ),
-            Text(widget.task.description, style: const TextStyle(fontSize: 32)),
+            Text(
+              widget.task.description,
+              style: const TextStyle(fontSize: 32),
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 16),
             Text('Created ${timeago.format(widget.task.created)}'),
             if (widget.task.dueDate != null)
@@ -906,38 +1046,6 @@ class _TaskPageState extends State<TaskPage> {
           ],
         ),
       ),
-    );
-  }
-
-  void _showImageDialog(BuildContext context, String imagePath) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (File(imagePath).existsSync())
-                Image.file(
-                  File(imagePath),
-                  height: 200,
-                  width: 200,
-                  fit: BoxFit.cover,
-                )
-              else
-                const Text('File does not exist!'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
     );
   }
 }

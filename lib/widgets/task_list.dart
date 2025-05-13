@@ -22,6 +22,7 @@ class Task {
   }) : id = id ?? _idCounter++,
        created = created ?? DateTime.now();
 
+  // Toggle the completed status
   void toggleCompleted() {
     isCompleted = !isCompleted;
   }
@@ -56,7 +57,6 @@ class Task {
 class TaskList extends StatefulWidget {
   final List<Task> tasks;
   final Function(int oldIndex, int newIndex) onReorder;
-
   const TaskList({required this.tasks, required this.onReorder})
     : super(key: const Key('task_list'));
 
@@ -79,3 +79,7 @@ class TaskListState extends State<TaskList> {
     );
   }
 }
+
+
+// use shared pref, option to edit from task page, update data on main page immediately
+//
