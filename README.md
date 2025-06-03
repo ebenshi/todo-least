@@ -1,6 +1,6 @@
-# flutter_intro
+# To Do Least
 
-First Flutter project.
+A minimalistic to-do list app built with Flutter.
 
 ## Getting Started
 
