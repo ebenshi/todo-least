@@ -42,7 +42,7 @@ class Task {
 
   // Create Task from Map
   factory Task.fromJson(Map<String, dynamic> json) {
-    return Task(
+    final task = Task(
       title: json['title'],
       description: json['description'],
       id: json['id'],
@@ -51,6 +51,13 @@ class Task {
       dueDate: json['dueDate'] != null ? DateTime.parse(json['dueDate']) : null,
       photoPath: json['photoPath'],
     );
+
+    // Ensure the next generated id is greater than any restored id.
+    if (task.id >= _idCounter) {
+      _idCounter = task.id + 1;
+    }
+
+    return task;
   }
 }
 
